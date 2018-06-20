@@ -23,7 +23,13 @@ V_f = V_max
 th_f = -np.pi/2
 
 # Solve Linear equations:
-#...TODO...#
+psi_mat = np.array([[1, 0, 0, 0], [0, 1, 0, 0],
+                    [1, t_f, t_f**2, t_f**3], [0, 1, 2*t_f, 3*t_f**2]]);
+x_mat = np.array([x_0, V_0*math.cos(th_0), x_f, V_f*math.cos(th_f)]);
+y_mat = np.array([y_0, V_0*math.sin(th_0), y_f, V_f*math.sin(th_f)]);
+
+xi = np.linalg.solve(psi_mat, x_mat);
+yi = np.linalg.solve(psi_mat, y_mat);
 
 # Compute traj
 dt = 0.005
@@ -33,21 +39,48 @@ t = t.T
 data = np.zeros((N+1,9))
 
 # Compute trajectory, store in data, format: [x,y,th,V,om,xd,yd,xdd,ydd]
-#...TODO...#
+x = xi[0] + xi[1]*t + xi[2]*t*t + xi[3]*t**3;
+y = yi[0] + yi[1]*t + yi[2]*t*t + yi[3]*t**3;
+xd = xi[1] + 2*xi[2]*t + 3*xi[3]*t**2;
+yd = yi[1] + 2*yi[2]*t + 3*yi[3]*t**2;
+xdd = 2*xi[2]+6*xi[3]*t;
+ydd = 2*yi[2]+6*yi[3]*t;
+th = np.array([math.atan(lam) for lam in yd/xd]);
+V = xd/[math.cos(lam) for lam in th];
+om = (xd*ydd - xdd*yd)/(xd**2 + yd**2);
+
+data[:,0] = x.T;
+data[:,1] = y.T;
+data[:,2] = th.T;
+data[:,3] = V.T;
+data[:,4] = om.T;
+data[:,5] = xd.T;
+data[:,6] = yd.T;
+data[:,7] = xdd.T;
+data[:,8] = ydd.T;
+
 
 ## Re-scaling - Compute scaled trajectory quantities at the N points along the geometric path above
+
 # Compute arc-length s as a function of t (HINT: use the function cumtrapz)
-# s = ...TODO...#
+s = cumtrapz(V, t, initial=0);
 
 # Compute V_tilde (HINT: at each timestep V_tilde should be computed as a minimum of
 # the original value V, and values required to ensure both constraints are satisfied)
-# V_tilde = ...TODO...#
+V_tilde = np.zeros(len(t))
+for i in range(len(t)):
+    V_tilde[i] = max(min(V[i], 0.5), -0.5)
+    if om[i] > 0:
+        V_tilde[i] = max(min(V_tilde[i], V[i]/om[i]), -V[i]/om[i])
+    if om[i] < 0:
+        V_tilde[i] = max(min(V_tilde[i], -V[i]/om[i]), V[i]/om[i])
+    # if om[i] == 0, then om_tilde = 0
 
 # Compute tau (HINT: use the function cumtrapz)
-# tau = ...TODO...#
+tau = cumtrapz(1/V_tilde, s, initial=0);
 
 # Compute om_tilde
-# om_tilde = ...TODO...#
+om_tilde = (om/V)*V_tilde;
 
 # Get new final time
 tf_new = tau[-1]

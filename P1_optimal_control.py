@@ -3,18 +3,27 @@ import math
 import scikits.bvp_solver
 import matplotlib.pyplot as plt
 
-
 def q1_ode_fun(tau, z):
+    # Return array containing RHS of ODEs
+    # z = [x1 x2 x3 p1 p2 p3 r]
+    # x1 = x
+    # x2 = y
+    # x3 = theta
 
-    # Code in the BVP ODEs
+    w = (-0.5)*z[5] # -p3/2
+    V = (-0.5)*(z[3]*math.cos(z[2]) + z[4]*math.sin(z[2]))
+    x_dot = z[6]*np.array([V*math.cos(z[2]), V*math.sin(z[2]), w])
+    p_dot = z[6]*np.array([0, 0, z[3]*V*math.sin(z[2]) - z[4]*V*math.cos(z[2])]);
+    r_dot = 0 # dummy state
 
-    return #...TODO...#
-
+    return np.hstack((x_dot,p_dot,r_dot))
 
 def q1_bc_fun(za, zb):
+    # Return a tuple with 2 arrays - left and right BCs
+    # len(BC_left) + len(BC_right) = num_ODEs
 
     # lambda
-    lambda_test = 1.0
+    lambda_test = 0.249
 
     # goal pose
     x_g = 5
@@ -26,15 +35,35 @@ def q1_bc_fun(za, zb):
     x0 = [0, 0, -np.pi/2.0]
 
     # Code boundary condition residuals
+    BC_left = np.array([za[0]-x0[0], za[1]-x0[1], za[2]-x0[2]])
 
-    return #...TODO...#
+    x = zb[0];
+    y = zb[1];
+    th = zb[2];
+    p1 = zb[3];
+    p2 = zb[4];
+    p3 = zb[5];
+    tf = zb[6];
 
-#Define solver state: z = [x, y, th, ...? ]
-problem = scikits.bvp_solver.ProblemDefinition(#...TODO...#
-                                               )
+    w = (-0.5)*p3;
+    V = (-0.5)*(p1*math.cos(th) + p2*math.sin(th));
+    H_f = (lambda_test + V**2 + w**2 + p1*V*math.cos(th) + p2*V*math.sin(th) + p3*w);
 
-soln = scikits.bvp_solver.solve(problem, solution_guess = (#...TODO...#
-                                ))
+    BC_right = np.array([zb[0]-xf[0], zb[1]-xf[1], zb[2]-xf[2], H_f])
+
+    return (BC_left, BC_right)
+
+#Define solver state: z = [x, y, th, p1, p2, p3, r]
+guess = (1.0, 1.0, -np.pi/4.0, 1.0, 0.0, 0.0, 5.0)
+
+problem = scikits.bvp_solver.ProblemDefinition(num_ODE=7, #Number of ODes
+                                               num_parameters = 0, #Number of parameters
+                                               num_left_boundary_conditions = 3, #Number of left BCs
+                                               boundary_points = (0,1), #Boundary points of independent coordinate
+                                               function = q1_ode_fun, #ODE function
+                                               boundary_conditions = q1_bc_fun) #BC function
+
+soln = scikits.bvp_solver.solve(problem, solution_guess = guess, trace = 0)
 
 dt = 0.005
 
@@ -54,11 +83,16 @@ if flip:
 z = z.T # solution arranged column-wise
 
 # Recover optimal control histories
-V = #...TODO...#
-om = #...TODO...#
+V = -0.5*(z[:,3]*np.array([math.cos(x) for x in z[:,2]]) +
+          z[:,4]*np.array([math.sin(x) for x in z[:,2]]))
+om = -0.5*z[:,5]
 
 V = np.array([V]).T # Convert to 1D column matrices
 om = np.array([om]).T
+
+# Ensure solution feasible
+assert max(abs(V)) <= 0.5
+assert max(abs(om)) <= 1
 
 # Save trajectory data (state and controls)
 data = np.hstack((z[:,:3],V,om))
